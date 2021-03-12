@@ -30,9 +30,14 @@ var (
 )
 
 func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router {
+	cp := contextPath
+	if cp == "/" {
+		cp = ""
+	}
+
 	h := &handler{
 		repoProxyURL: repoProxyURL,
-		contextPath:  contextPath,
+		contextPath:  cp,
 		offlineFiles: make(map[string][]byte),
 	}
 
@@ -40,8 +45,8 @@ func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router
 
 	r := mux.NewRouter()
 	r.HandleFunc(contextPath, h.handleIndex)
-	r.HandleFunc(contextPath+updateCenter, h.handleUpdateCenter(updateCenter))
-	r.HandleFunc(contextPath+updateCenterActual, h.handleUpdateCenter(updateCenterActual))
+	r.HandleFunc(cp+updateCenter, h.handleUpdateCenter(updateCenter))
+	r.HandleFunc(cp+updateCenterActual, h.handleUpdateCenter(updateCenterActual))
 	return r
 }
 
@@ -120,8 +125,9 @@ func (h *handler) handleIndex(res http.ResponseWriter, _ *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"ContextPath": h.contextPath,
-		"Title":       fmt.Sprintf("Jenkins UpdateCenter Proxy %s", version.Version),
+		"updateCenterURL":    h.contextPath + updateCenter,
+		"updateCenterActual": h.contextPath + updateCenterActual,
+		"title":              fmt.Sprintf("Jenkins UpdateCenter Proxy %s", version.Version),
 	}
 
 	res.Header().Set("Content-Type", "text/html")

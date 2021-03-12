@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/bakito/jenkins-update-center-proxy/pkg/handler"
 	"github.com/bakito/jenkins-update-center-proxy/version"
@@ -31,6 +32,12 @@ func main() {
 	fmt.Printf("Starting server %s on port %s\n", version.Version, port)
 	contextPath := "/"
 	if cp, ok := os.LookupEnv(envContextPath); ok {
+		if !strings.HasPrefix(cp, "/") {
+			cp = "/" + cp
+		}
+		if strings.HasSuffix(cp, "/") {
+			cp = cp[:len(cp)-1]
+		}
 		contextPath = cp
 		fmt.Printf("Context path is: %s\n", contextPath)
 	}
