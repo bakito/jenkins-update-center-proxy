@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/eko/gocache/store"
 	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/mux"
 )
@@ -27,9 +26,8 @@ var (
 	index []byte
 )
 
-func New(s store.StoreInterface, repoProxyURL string) *mux.Router {
+func New(repoProxyURL string) *mux.Router {
 	h := &handler{
-		store:        s,
 		repoProxyURL: repoProxyURL,
 	}
 	r := mux.NewRouter()
@@ -41,14 +39,13 @@ func New(s store.StoreInterface, repoProxyURL string) *mux.Router {
 }
 
 type handler struct {
-	store        store.StoreInterface
 	repoProxyURL string
 }
 
 // Given a request send it to the appropriate url
 func (h *handler) handleUpdateCenter(url string) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-		fmt.Printf("Request %s", url)
+		fmt.Printf("Request %s\n", url)
 		rc := resty.New()
 		rc.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 
@@ -65,6 +62,7 @@ func (h *handler) handleUpdateCenter(url string) func(res http.ResponseWriter, r
 
 		ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
 		res.Header().Set("Content-Type", resp.Header().Get("Content-Type"))
+		res.Header().Set("Content-Length", fmt.Sprintf("%d", len([]byte(ucj))))
 		_, err = res.Write([]byte(ucj))
 		if err != nil {
 			http.Error(res, err.Error(), http.StatusInternalServerError)

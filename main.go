@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
-
-	"github.com/allegro/bigcache"
 
 	"github.com/bakito/jenkins-update-center-proxy/pkg/handler"
-	"github.com/eko/gocache/store"
+	"github.com/bakito/jenkins-update-center-proxy/version"
 )
 
 const (
@@ -29,13 +26,10 @@ func main() {
 		port = p
 	}
 
-	bigcacheClient, _ := bigcache.NewBigCache(bigcache.DefaultConfig(5 * time.Minute))
-	bigcacheStore := store.NewBigcache(bigcacheClient, nil)
-
-	router := handler.New(bigcacheStore, repoProxyURL)
+	router := handler.New(repoProxyURL)
 
 	http.Handle("/", router)
-	fmt.Printf("Starting servier on port %s\n", port)
+	fmt.Printf("Starting server %s on port %s\n", version.Version, port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
 		panic(err)
 	}
