@@ -12,6 +12,7 @@ import (
 const (
 	envRepoProxyURL = "REPO_PROXY_URL"
 	envPort         = "PORT"
+	envOfflineDir   = "OFFLINE_DIR"
 )
 
 func main() {
@@ -26,7 +27,9 @@ func main() {
 		port = p
 	}
 
-	router := handler.New(repoProxyURL)
+	offlineDir := os.Getenv(envOfflineDir)
+
+	router := handler.New(repoProxyURL, offlineDir)
 
 	http.Handle("/", router)
 	fmt.Printf("Starting server %s on port %s\n", version.Version, port)
