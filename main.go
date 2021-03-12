@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/gorilla/mux"
 
 	"github.com/bakito/jenkins-update-center-proxy/pkg/handler"
 	"github.com/bakito/jenkins-update-center-proxy/version"
@@ -21,7 +24,7 @@ func main() {
 
 	repoProxyURL := os.Getenv(envRepoProxyURL)
 	if repoProxyURL == "" {
-		fmt.Printf("env variable %s is required", envRepoProxyURL)
+		log.Printf("env variable %s is required", envRepoProxyURL)
 		os.Exit(1)
 	}
 	port := "8080"
@@ -29,7 +32,7 @@ func main() {
 		port = p
 	}
 
-	fmt.Printf("Starting server %s on port %s\n", version.Version, port)
+	log.Printf("Starting server %s on port %s\n", version.Version, port)
 	contextPath := "/"
 	if cp, ok := os.LookupEnv(envContextPath); ok {
 		if !strings.HasPrefix(cp, "/") {
@@ -39,14 +42,15 @@ func main() {
 			cp = cp[:len(cp)-1]
 		}
 		contextPath = cp
-		fmt.Printf("Context path is: %s\n", contextPath)
+		log.Printf("Context path is: %s\n", contextPath)
 	}
 
 	offlineDir := os.Getenv(envOfflineDir)
+	r := mux.NewRouter()
+	h := handler.New(r, contextPath, repoProxyURL, offlineDir)
+	defer h.Close()
 
-	router := handler.New(contextPath, repoProxyURL, offlineDir)
-
-	http.Handle("/", router)
+	http.Handle("/", r)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
 		panic(err)
 	}

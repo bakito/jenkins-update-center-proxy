@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/bakito/jenkins-update-center-proxy/version"
+	"github.com/fsnotify/fsnotify"
 	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/mux"
 	"github.com/robfig/cron/v3"
@@ -31,7 +33,7 @@ var (
 	indexTemplate string
 )
 
-func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router {
+func New(r *mux.Router, contextPath string, repoProxyURL string, offlineDir string) Handler {
 	cp := contextPath
 	if cp == "/" {
 		cp = ""
@@ -42,9 +44,22 @@ func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router
 		offlineDir:   offlineDir,
 		contextPath:  cp,
 		offlineFiles: make(map[string][]byte),
+		cs:           cron.New(),
 	}
 
-	r := mux.NewRouter()
+	if h.offlineDir != "" {
+		var err error
+		h.watcher, err = fsnotify.NewWatcher()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if err := h.watcher.Add(h.offlineDir); err != nil {
+			log.Printf("ERROR: %v", err)
+		}
+		go h.watchOfflineChanges()
+	}
+
 	r.HandleFunc(contextPath, h.handleIndex)
 	r.HandleFunc(cp+updateCenter, h.handleUpdateCenter(updateCenter))
 	r.HandleFunc(cp+updateCenterActual, h.handleUpdateCenter(updateCenterActual))
@@ -52,9 +67,14 @@ func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router
 	r.HandleFunc(cp+pluginVersions, h.handleUpdateCenter(pluginVersions))
 
 	h.readOfflineFiles()
-	cronScheduler := cron.New()
-	_, _ = cronScheduler.AddFunc("*/30 4 * * *", h.readOfflineFiles)
-	return r
+
+	_, _ = h.cs.AddFunc("*/30 4 * * *", h.readOfflineFiles)
+	h.cs.Start()
+	return h
+}
+
+type Handler interface {
+	Close()
 }
 
 type handler struct {
@@ -62,18 +82,44 @@ type handler struct {
 	offlineFiles map[string][]byte
 	contextPath  string
 	offlineDir   string
+	watcher      *fsnotify.Watcher
+	cs           *cron.Cron
+}
+
+func (h *handler) Close() {
+	if h.watcher != nil {
+		_ = h.watcher.Close()
+	}
+	if h.cs != nil {
+		h.cs.Stop()
+	}
 }
 
 func (h *handler) readOfflineFiles() {
 	if h.offlineDir != "" {
-		fmt.Printf("Reload offline files %s\n", h.offlineDir)
-		h.loadFile(h.offlineDir, updateCenter)
-		h.loadFile(h.offlineDir, updateCenterActual)
-		h.loadFile(h.offlineDir, updateCenterExperimental)
-		h.loadFile(h.offlineDir, pluginVersions)
+		log.Printf("Reload offline files %s\n", h.offlineDir)
+		h.cacheFile(h.offlineDir, updateCenter)
+		h.cacheFile(h.offlineDir, updateCenterActual)
+		h.cacheFile(h.offlineDir, updateCenterExperimental)
+		h.cacheFile(h.offlineDir, pluginVersions)
 	}
 }
 
+func (h *handler) watchOfflineChanges() {
+	for {
+		select {
+		// watch for events
+		case event := <-h.watcher.Events:
+			if strings.HasSuffix(event.Name, ".json") {
+				h.readOfflineFiles()
+			}
+
+			// watch for errors
+		case err := <-h.watcher.Errors:
+			log.Printf("ERROR: %v", err)
+		}
+	}
+}
 func (h *handler) cacheFile(offlineDir string, name string) {
 	dat := h.loadFile(offlineDir, name)
 	if dat != nil {
@@ -101,7 +147,7 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 
 		url := repoURL + file
 
-		fmt.Printf("Request %s\n", url)
+		log.Printf("Request %s\n", url)
 
 		var dat []byte
 		if content, ok := h.offlineFiles[file]; ok {
