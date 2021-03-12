@@ -4,11 +4,14 @@ import (
 	"crypto/tls"
 	_ "embed"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bakito/jenkins-update-center-proxy/version"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/mux"
@@ -23,27 +26,29 @@ const (
 
 var (
 	//go:embed index.html
-	index []byte
+	indexTemplate string
 )
 
-func New(repoProxyURL string, offlineDir string) *mux.Router {
+func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router {
 	h := &handler{
 		repoProxyURL: repoProxyURL,
+		contextPath:  contextPath,
 		offlineFiles: make(map[string][]byte),
 	}
 
 	h.readOfflineFiles(offlineDir)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/", h.handleIndex)
-	r.HandleFunc(updateCenter, h.handleUpdateCenter(updateCenter))
-	r.HandleFunc(updateCenterActual, h.handleUpdateCenter(updateCenterActual))
+	r.HandleFunc(contextPath, h.handleIndex)
+	r.HandleFunc(contextPath+updateCenter, h.handleUpdateCenter(updateCenter))
+	r.HandleFunc(contextPath+updateCenterActual, h.handleUpdateCenter(updateCenterActual))
 	return r
 }
 
 type handler struct {
 	repoProxyURL string
 	offlineFiles map[string][]byte
+	contextPath  string
 }
 
 func (h *handler) readOfflineFiles(offlineDir string) {
@@ -106,9 +111,21 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 	}
 }
 
-func (h *handler) handleIndex(res http.ResponseWriter, req *http.Request) {
+func (h *handler) handleIndex(res http.ResponseWriter, _ *http.Request) {
+
+	t, err := template.New("index").Parse(indexTemplate)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"ContextPath": h.contextPath,
+		"Title":       fmt.Sprintf("Jenkins UpdateCenter Proxy %s", version.Version),
+	}
+
 	res.Header().Set("Content-Type", "text/html")
-	_, err := res.Write(index)
+	err = t.Execute(res, data)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 		return

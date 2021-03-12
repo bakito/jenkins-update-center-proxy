@@ -28,17 +28,18 @@ func main() {
 		port = p
 	}
 
+	fmt.Printf("Starting server %s on port %s\n", version.Version, port)
 	contextPath := "/"
 	if cp, ok := os.LookupEnv(envContextPath); ok {
 		contextPath = cp
+		fmt.Printf("Context path is: %s\n", contextPath)
 	}
 
 	offlineDir := os.Getenv(envOfflineDir)
 
-	router := handler.New(repoProxyURL, offlineDir)
+	router := handler.New(contextPath, repoProxyURL, offlineDir)
 
-	http.Handle(contextPath, router)
-	fmt.Printf("Starting server %s on port %s\n", version.Version, port)
+	http.Handle("/", router)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
 		panic(err)
 	}
