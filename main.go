@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-
 	"github.com/bakito/jenkins-update-center-proxy/pkg/handler"
 	"github.com/bakito/jenkins-update-center-proxy/version"
 )

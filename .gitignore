@@ -2,3 +2,4 @@
 dist
 *.exe
 testdata
+coverage.out
