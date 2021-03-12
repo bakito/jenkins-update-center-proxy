@@ -14,6 +14,7 @@ import (
 	"github.com/bakito/jenkins-update-center-proxy/version"
 	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/mux"
+	"github.com/robfig/cron/v3"
 )
 
 const (
@@ -38,11 +39,10 @@ func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router
 
 	h := &handler{
 		repoProxyURL: repoProxyURL,
+		offlineDir:   offlineDir,
 		contextPath:  cp,
 		offlineFiles: make(map[string][]byte),
 	}
-
-	h.readOfflineFiles(offlineDir)
 
 	r := mux.NewRouter()
 	r.HandleFunc(contextPath, h.handleIndex)
@@ -50,6 +50,10 @@ func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router
 	r.HandleFunc(cp+updateCenterActual, h.handleUpdateCenter(updateCenterActual))
 	r.HandleFunc(cp+updateCenterExperimental, h.handleUpdateCenter(updateCenterExperimental))
 	r.HandleFunc(cp+pluginVersions, h.handleUpdateCenter(pluginVersions))
+
+	h.readOfflineFiles()
+	cronScheduler := cron.New()
+	_, _ = cronScheduler.AddFunc("*/30 4 * * *", h.readOfflineFiles)
 	return r
 }
 
@@ -57,28 +61,38 @@ type handler struct {
 	repoProxyURL string
 	offlineFiles map[string][]byte
 	contextPath  string
+	offlineDir   string
 }
 
-func (h *handler) readOfflineFiles(offlineDir string) {
-	if offlineDir != "" {
-		h.loadFile(offlineDir, updateCenter)
-		h.loadFile(offlineDir, updateCenterActual)
-		h.loadFile(offlineDir, updateCenterExperimental)
-		h.loadFile(offlineDir, pluginVersions)
+func (h *handler) readOfflineFiles() {
+	if h.offlineDir != "" {
+		fmt.Printf("Reload offline files %s\n", h.offlineDir)
+		h.loadFile(h.offlineDir, updateCenter)
+		h.loadFile(h.offlineDir, updateCenterActual)
+		h.loadFile(h.offlineDir, updateCenterExperimental)
+		h.loadFile(h.offlineDir, pluginVersions)
 	}
 }
 
-func (h *handler) loadFile(offlineDir string, name string) {
+func (h *handler) cacheFile(offlineDir string, name string) {
+	dat := h.loadFile(offlineDir, name)
+	if dat != nil {
+		h.offlineFiles[name] = dat
+	} else {
+		delete(h.offlineFiles, name)
+	}
+}
+
+func (h *handler) loadFile(offlineDir string, name string) []byte {
 	path := filepath.Join(offlineDir, name)
 	if _, err := os.Stat(path); err == nil {
 		if dat, err := ioutil.ReadFile(path); err == nil {
-
 			ucj := string(dat)
 			ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
-			h.offlineFiles[name] = []byte(ucj)
-			fmt.Printf("Using offline file %s\n", path)
+			return []byte(ucj)
 		}
 	}
+	return nil
 }
 
 // Given a request send it to the appropriate url
@@ -109,6 +123,7 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 
 			ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
 			dat = []byte(ucj)
+			h.offlineFiles[file] = dat
 		}
 
 		res.Header().Set("Content-Type", "application/json")
