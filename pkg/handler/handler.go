@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/bakito/jenkins-update-center-proxy/version"
-
 	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/mux"
 )
@@ -20,8 +19,10 @@ import (
 const (
 	repoURL = "https://updates.jenkins.io"
 
-	updateCenter       = "/update-center.json"
-	updateCenterActual = "/update-center.actual.json"
+	updateCenter             = "/update-center.json"
+	updateCenterActual       = "/update-center.actual.json"
+	updateCenterExperimental = "/experimental/update-center.json"
+	pluginVersions           = "/plugin-versions.json"
 )
 
 var (
@@ -47,6 +48,8 @@ func New(contextPath string, repoProxyURL string, offlineDir string) *mux.Router
 	r.HandleFunc(contextPath, h.handleIndex)
 	r.HandleFunc(cp+updateCenter, h.handleUpdateCenter(updateCenter))
 	r.HandleFunc(cp+updateCenterActual, h.handleUpdateCenter(updateCenterActual))
+	r.HandleFunc(cp+updateCenterExperimental, h.handleUpdateCenter(updateCenterExperimental))
+	r.HandleFunc(cp+pluginVersions, h.handleUpdateCenter(pluginVersions))
 	return r
 }
 
@@ -60,6 +63,8 @@ func (h *handler) readOfflineFiles(offlineDir string) {
 	if offlineDir != "" {
 		h.loadFile(offlineDir, updateCenter)
 		h.loadFile(offlineDir, updateCenterActual)
+		h.loadFile(offlineDir, updateCenterExperimental)
+		h.loadFile(offlineDir, pluginVersions)
 	}
 }
 
@@ -125,9 +130,14 @@ func (h *handler) handleIndex(res http.ResponseWriter, _ *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"updateCenterURL":    h.contextPath + updateCenter,
-		"updateCenterActual": h.contextPath + updateCenterActual,
-		"title":              fmt.Sprintf("Jenkins UpdateCenter Proxy %s", version.Version),
+		"title":       fmt.Sprintf("Jenkins UpdateCenter Proxy %s", version.Version),
+		"contextPath": h.contextPath,
+		"links": []string{
+			updateCenter,
+			updateCenterActual,
+			updateCenterExperimental,
+			pluginVersions,
+		},
 	}
 
 	res.Header().Set("Content-Type", "text/html")

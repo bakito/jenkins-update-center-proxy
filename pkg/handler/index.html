@@ -12,8 +12,10 @@
 <div class="container">
     <h1>{{.title}}</h1>
     <ul>
-        <li><a href="{{.updateCenterURL}}">/update-center.json</a></li>
-        <li><a href="{{.updateCenterActual}}">/update-center.actual.json </a></li>
+        {{- $root := . -}}
+        {{range $i, $link := .links}}
+        <li><a href="{{$root.contextPath}}{{$link}}">{{$link}}</a></li>
+        {{end}}
     </ul>
 </div>
 </body>
