@@ -145,7 +145,11 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 
 		url := h.downloadURL + file
 
-		log.Printf("Request %s\n", url)
+		if req.URL.RawQuery != "" {
+			log.Printf("Request %s?%s\n", url, req.URL.RawQuery)
+		} else {
+			log.Printf("Request %s\n", url)
+		}
 
 		var dat []byte
 		if content, ok := h.offlineFiles[file]; ok {
