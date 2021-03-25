@@ -7,16 +7,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gorilla/mux"
 	"github.com/bakito/jenkins-update-center-proxy/pkg/handler"
 	"github.com/bakito/jenkins-update-center-proxy/version"
+	"github.com/gorilla/mux"
 )
 
 const (
-	envRepoProxyURL = "REPO_PROXY_URL"
-	envPort         = "PORT"
-	envOfflineDir   = "OFFLINE_DIR"
-	envContextPath  = "CONTEXT_PATH"
+	envRepoProxyURL            = "REPO_PROXY_URL"
+	envUseRepoProxyForDownload = "USE_REPO_PROXY_FOR_DOWNLOAD"
+	envPort                    = "PORT"
+	envOfflineDir              = "OFFLINE_DIR"
+	envContextPath             = "CONTEXT_PATH"
 )
 
 func main() {
@@ -43,10 +44,11 @@ func main() {
 		contextPath = cp
 		log.Printf("Context path is: %s\n", contextPath)
 	}
+	useProxyForDownload := strings.EqualFold("true", os.Getenv(envUseRepoProxyForDownload))
 
 	offlineDir := os.Getenv(envOfflineDir)
 	r := mux.NewRouter()
-	h := handler.New(r, contextPath, repoProxyURL, offlineDir)
+	h := handler.New(r, contextPath, repoProxyURL, useProxyForDownload, offlineDir)
 	defer h.Close()
 
 	http.Handle("/", r)

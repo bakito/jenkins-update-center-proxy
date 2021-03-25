@@ -32,7 +32,7 @@ var (
 	indexTemplate string
 )
 
-func New(r *mux.Router, contextPath string, repoProxyURL string, offlineDir string) Handler {
+func New(r *mux.Router, contextPath string, repoProxyURL string, useProxyForDownload bool, offlineDir string) Handler {
 	cp := contextPath
 	if cp == "/" {
 		cp = ""
@@ -43,6 +43,12 @@ func New(r *mux.Router, contextPath string, repoProxyURL string, offlineDir stri
 		offlineDir:   offlineDir,
 		contextPath:  cp,
 		offlineFiles: make(map[string][]byte),
+	}
+
+	if useProxyForDownload {
+		h.downloadURL = repoProxyURL
+	} else {
+		h.downloadURL = repoURL
 	}
 
 	if h.offlineDir != "" {
@@ -74,6 +80,7 @@ type Handler interface {
 
 type handler struct {
 	repoProxyURL string
+	downloadURL  string
 	offlineFiles map[string][]byte
 	contextPath  string
 	offlineDir   string
@@ -136,7 +143,7 @@ func (h *handler) loadFile(offlineDir string, name string) []byte {
 func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 
-		url := repoURL + file
+		url := h.downloadURL + file
 
 		log.Printf("Request %s\n", url)
 
