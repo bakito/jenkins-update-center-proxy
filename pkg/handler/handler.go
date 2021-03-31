@@ -42,7 +42,7 @@ func New(r *mux.Router, contextPath string, repoProxyURL string, useProxyForDown
 		repoProxyURL: repoProxyURL,
 		offlineDir:   offlineDir,
 		contextPath:  cp,
-		offlineFiles: make(map[string][]byte),
+		offlineFiles: make(map[string]string),
 	}
 
 	if useProxyForDownload {
@@ -81,7 +81,7 @@ type Handler interface {
 type handler struct {
 	repoProxyURL string
 	downloadURL  string
-	offlineFiles map[string][]byte
+	offlineFiles map[string]string
 	contextPath  string
 	offlineDir   string
 	watcher      *fsnotify.Watcher
@@ -119,16 +119,16 @@ func (h *handler) watchOfflineChanges() {
 	}
 }
 func (h *handler) cacheFile(offlineDir string, name string) {
-	dat := h.loadFile(offlineDir, name)
+	path := filepath.Join(offlineDir, name)
+	dat := h.loadFile(path)
 	if dat != nil {
-		h.offlineFiles[name] = dat
+		h.offlineFiles[name] = path
 	} else {
 		delete(h.offlineFiles, name)
 	}
 }
 
-func (h *handler) loadFile(offlineDir string, name string) []byte {
-	path := filepath.Join(offlineDir, name)
+func (h *handler) loadFile(path string) []byte {
 	if _, err := os.Stat(path); err == nil {
 		if dat, err := ioutil.ReadFile(path); err == nil {
 			ucj := string(dat)
@@ -152,9 +152,11 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 		}
 
 		var dat []byte
-		if content, ok := h.offlineFiles[file]; ok {
-			dat = content
-		} else {
+		if path, ok := h.offlineFiles[file]; ok {
+			dat = h.loadFile(path)
+		}
+
+		if dat == nil {
 			rc := resty.New()
 			rc.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
 
