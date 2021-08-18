@@ -19,6 +19,8 @@ The proxy can be configured by using env variables:
 
 ## Docker images
 
+[ghcr](https://github.com/bakito/jenkins-update-center-proxy/pkgs/container/jenkins-update-center-proxy) or [quay](https://quay.io/repository/bakito/jenkins-update-center-proxy?tag=latest&tab=tags)
+
 ```bash
 docker pull ghcr.io/bakito/jenkins-update-center-proxy
 # or 
