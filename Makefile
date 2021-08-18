@@ -28,7 +28,9 @@ build-docker:
 build-podman:
 	podman build --build-arg upx_brute=" " -t jenkins-update-center-proxy .
 
-release: goreleaser
+release: semver
+	@version=$$(semver); \
+	git tag -s $$version -m"Release $$version"
 	goreleaser --rm-dist
 
 test-release: goreleaser
@@ -46,4 +48,9 @@ endif
 golangci-lint:
 ifeq (, $(shell which golangci-lint))
  $(shell go get github.com/golangci/golangci-lint/cmd/golangci-lint)
+endif
+
+semver:
+ifeq (, $(shell which semver))
+ $(shell go get -u github.com/bakito/semver)
 endif
