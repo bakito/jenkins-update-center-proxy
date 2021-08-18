@@ -42,10 +42,9 @@ func main() {
 		contextPath = strings.TrimSuffix(cp, "/")
 	}
 
-	insecureSkipVerify := strings.ToLower(os.Getenv(envInsecureSkipVerify)) == "true"
-
 	log.With("version", version.Version, "port", port, "contextPath", contextPath).Info("Starting server")
 	useProxyForDownload := strings.EqualFold("true", os.Getenv(envUseRepoProxyForDownload))
+	insecureSkipVerify := strings.EqualFold("true", os.Getenv(envInsecureSkipVerify))
 
 	offlineDir := os.Getenv(envOfflineDir)
 	r := mux.NewRouter()
