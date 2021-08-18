@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-resty/resty/v2"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 const (
@@ -30,19 +30,32 @@ const (
 var (
 	//go:embed index.html
 	indexTemplate string
+	log           *zap.SugaredLogger
 )
 
-func New(r *mux.Router, contextPath string, repoProxyURL string, offlineDir string) Handler {
+func init() {
+	logger, _ := zap.NewDevelopment()
+	log = logger.Sugar()
+}
+
+func New(r *mux.Router, contextPath string, repoProxyURL string, useProxyForDownload bool, insecureSkipVerify bool, offlineDir string) Handler {
 	cp := contextPath
 	if cp == "/" {
 		cp = ""
 	}
 
 	h := &handler{
-		repoProxyURL: repoProxyURL,
-		offlineDir:   offlineDir,
-		contextPath:  cp,
-		offlineFiles: make(map[string][]byte),
+		repoProxyURL:       repoProxyURL,
+		offlineDir:         offlineDir,
+		contextPath:        cp,
+		offlineFiles:       make(map[string]string),
+		insecureSkipVerify: insecureSkipVerify,
+	}
+
+	if useProxyForDownload {
+		h.downloadURL = repoProxyURL
+	} else {
+		h.downloadURL = repoURL
 	}
 
 	if h.offlineDir != "" {
@@ -53,7 +66,7 @@ func New(r *mux.Router, contextPath string, repoProxyURL string, offlineDir stri
 		}
 
 		if err := h.watcher.Add(h.offlineDir); err != nil {
-			log.Printf("ERROR: %v", err)
+			log.Error(err)
 		}
 		go h.watchOfflineChanges()
 	}
@@ -73,11 +86,13 @@ type Handler interface {
 }
 
 type handler struct {
-	repoProxyURL string
-	offlineFiles map[string][]byte
-	contextPath  string
-	offlineDir   string
-	watcher      *fsnotify.Watcher
+	repoProxyURL       string
+	downloadURL        string
+	offlineFiles       map[string]string
+	contextPath        string
+	offlineDir         string
+	watcher            *fsnotify.Watcher
+	insecureSkipVerify bool
 }
 
 func (h *handler) Close() {
@@ -88,7 +103,7 @@ func (h *handler) Close() {
 
 func (h *handler) readOfflineFiles() {
 	if h.offlineDir != "" {
-		log.Printf("Reload offline files %s\n", h.offlineDir)
+		log.With("dir", h.offlineDir).Info("Reload offline files")
 		h.cacheFile(h.offlineDir, updateCenter)
 		h.cacheFile(h.offlineDir, updateCenterActual)
 		h.cacheFile(h.offlineDir, updateCenterExperimental)
@@ -107,22 +122,23 @@ func (h *handler) watchOfflineChanges() {
 
 			// watch for errors
 		case err := <-h.watcher.Errors:
-			log.Printf("ERROR: %v", err)
+			log.Error(err)
 		}
 	}
 }
 func (h *handler) cacheFile(offlineDir string, name string) {
-	dat := h.loadFile(offlineDir, name)
+	path := filepath.Join(offlineDir, name)
+	dat := h.loadFile(path)
 	if dat != nil {
-		h.offlineFiles[name] = dat
+		h.offlineFiles[name] = path
 	} else {
 		delete(h.offlineFiles, name)
 	}
 }
 
-func (h *handler) loadFile(offlineDir string, name string) []byte {
-	path := filepath.Join(offlineDir, name)
+func (h *handler) loadFile(path string) []byte {
 	if _, err := os.Stat(path); err == nil {
+		// #nosec G304 files need to be loaded, since this is a private func files loaded are limited
 		if dat, err := ioutil.ReadFile(path); err == nil {
 			ucj := string(dat)
 			ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
@@ -136,16 +152,24 @@ func (h *handler) loadFile(offlineDir string, name string) []byte {
 func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
 
-		url := repoURL + file
+		url := h.downloadURL + file
 
-		log.Printf("Request %s\n", url)
+		rl := log.With("remoteAddr", req.RemoteAddr)
+		if req.URL.RawQuery != "" {
+			rl = rl.With("url", fmt.Sprintf("%s?%s", url, req.URL.RawQuery))
+		} else {
+			rl = rl.With("url", url)
+		}
+		rl.Info("Request")
 
 		var dat []byte
-		if content, ok := h.offlineFiles[file]; ok {
-			dat = content
-		} else {
+		if path, ok := h.offlineFiles[file]; ok {
+			dat = h.loadFile(path)
+		}
+
+		if dat == nil {
 			rc := resty.New()
-			rc.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: true})
+			rc.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: h.insecureSkipVerify}) // #nosec G402 InsecureSkipVerify must intentionally be enabled
 
 			resp, err := rc.R().
 				SetQueryParamsFromValues(req.URL.Query()).
