@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bakito/jenkins-update-center-proxy/version"
 	"github.com/fsnotify/fsnotify"
@@ -38,7 +39,7 @@ func init() {
 	log = logger.Sugar()
 }
 
-func New(r *mux.Router, contextPath string, repoProxyURL string, useProxyForDownload bool, insecureSkipVerify bool, offlineDir string) Handler {
+func New(r *mux.Router, contextPath string, repoProxyURL string, useProxyForDownload bool, insecureSkipVerify bool, offlineDir string, timeout time.Duration) Handler {
 	cp := contextPath
 	if cp == "/" {
 		cp = ""
@@ -50,6 +51,7 @@ func New(r *mux.Router, contextPath string, repoProxyURL string, useProxyForDown
 		contextPath:        cp,
 		offlineFiles:       make(map[string]string),
 		insecureSkipVerify: insecureSkipVerify,
+		timeout:            timeout,
 	}
 
 	if useProxyForDownload {
@@ -93,6 +95,7 @@ type handler struct {
 	offlineDir         string
 	watcher            *fsnotify.Watcher
 	insecureSkipVerify bool
+	timeout            time.Duration
 }
 
 func (h *handler) Close() {
@@ -170,6 +173,7 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 		if dat == nil {
 			rc := resty.New()
 			rc.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: h.insecureSkipVerify}) // #nosec G402 InsecureSkipVerify must intentionally be enabled
+			rc.SetTimeout(h.timeout)
 
 			resp, err := rc.R().
 				SetQueryParamsFromValues(req.URL.Query()).
@@ -188,8 +192,8 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 
 		res.Header().Set("Content-Type", "application/json")
 		res.Header().Set("Content-Length", fmt.Sprintf("%d", len(dat)))
-		_, err := res.Write(dat)
-		if err != nil {
+
+		if _, err := res.Write(dat); err != nil {
 			rl.Errorf("error writing updatecenter response: %v", err)
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return

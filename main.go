@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/bakito/jenkins-update-center-proxy/pkg/handler"
 	"github.com/bakito/jenkins-update-center-proxy/version"
@@ -19,6 +20,7 @@ const (
 	envOfflineDir              = "OFFLINE_DIR"
 	envContextPath             = "CONTEXT_PATH"
 	envInsecureSkipVerify      = "TLS_INSECURE_SKIP_VERIFY"
+	envTimeout                 = "TIMEOUT"
 )
 
 func main() {
@@ -42,13 +44,24 @@ func main() {
 		contextPath = strings.TrimSuffix(cp, "/")
 	}
 
+	timeoutString := "1m"
+	if to, ok := os.LookupEnv(envTimeout); ok {
+		timeoutString = to
+	}
+
+	timeout, err := time.ParseDuration(timeoutString)
+	if err != nil {
+		log.Error("timeout %q from env var %q is invalid", timeoutString, envTimeout)
+		os.Exit(1)
+	}
+
 	log.With("version", version.Version, "port", port, "contextPath", contextPath).Info("Starting server")
 	useProxyForDownload := strings.EqualFold("true", os.Getenv(envUseRepoProxyForDownload))
 	insecureSkipVerify := strings.EqualFold("true", os.Getenv(envInsecureSkipVerify))
 
 	offlineDir := os.Getenv(envOfflineDir)
 	r := mux.NewRouter()
-	h := handler.New(r, contextPath, repoProxyURL, useProxyForDownload, insecureSkipVerify, offlineDir)
+	h := handler.New(r, contextPath, repoProxyURL, useProxyForDownload, insecureSkipVerify, offlineDir, timeout)
 	defer h.Close()
 
 	http.Handle("/", r)
