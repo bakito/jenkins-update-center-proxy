@@ -190,6 +190,7 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 		res.Header().Set("Content-Length", fmt.Sprintf("%d", len(dat)))
 		_, err := res.Write(dat)
 		if err != nil {
+			rl.Errorf("error writing updatecenter response: %v", err)
 			http.Error(res, err.Error(), http.StatusInternalServerError)
 			return
 		}
