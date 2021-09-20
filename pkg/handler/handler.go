@@ -175,6 +175,8 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 			rc.SetTLSClientConfig(&tls.Config{InsecureSkipVerify: h.insecureSkipVerify}) // #nosec G402 InsecureSkipVerify must intentionally be enabled
 			rc.SetTimeout(h.timeout)
 
+			rl.Debug("starting request")
+			start := time.Now()
 			resp, err := rc.R().
 				SetQueryParamsFromValues(req.URL.Query()).
 				EnableTrace().
@@ -185,9 +187,11 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 				return
 			}
 			ucj := string(resp.Body())
+			rl.With("length", len(ucj), "duration", time.Now().Sub(start)).Debug("got response")
 
 			ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
 			dat = []byte(ucj)
+			rl.With("length", len(ucj)).Debug("replaced urls")
 		}
 
 		res.Header().Set("Content-Type", "application/json")

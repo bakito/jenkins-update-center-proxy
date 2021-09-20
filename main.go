@@ -21,10 +21,17 @@ const (
 	envContextPath             = "CONTEXT_PATH"
 	envInsecureSkipVerify      = "TLS_INSECURE_SKIP_VERIFY"
 	envTimeout                 = "TIMEOUT"
+	envDebugOutput             = "DEBUG_OUTPUT"
 )
 
 func main() {
-	logger, _ := zap.NewDevelopment()
+	lc := zap.NewDevelopmentConfig()
+	if strings.EqualFold(os.Getenv(envDebugOutput), "true") {
+		lc.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	} else {
+		lc.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	}
+	logger, _ := lc.Build()
 	log := logger.Sugar()
 	repoProxyURL := os.Getenv(envRepoProxyURL)
 	if repoProxyURL == "" {
@@ -55,7 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.With("version", version.Version, "port", port, "contextPath", contextPath).Info("Starting server")
+	log.With("version", version.Version, "port", port, "contextPath", contextPath, "timeout", timeoutString).Info("Starting server")
 	useProxyForDownload := strings.EqualFold("true", os.Getenv(envUseRepoProxyForDownload))
 	insecureSkipVerify := strings.EqualFold("true", os.Getenv(envInsecureSkipVerify))
 
