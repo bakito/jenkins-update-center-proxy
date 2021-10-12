@@ -47,7 +47,7 @@ ifeq (, $(shell which goreleaser))
 endif
 golangci-lint:
 ifeq (, $(shell which golangci-lint))
- $(shell go get github.com/golangci/golangci-lint/cmd/golangci-lint)
+ $(shell go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.42.1)
 endif
 
 semver:

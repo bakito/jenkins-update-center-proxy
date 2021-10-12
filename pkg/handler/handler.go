@@ -187,7 +187,7 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 				return
 			}
 			ucj := string(resp.Body())
-			rl.With("length", len(ucj), "duration", time.Now().Sub(start)).Debug("got response")
+			rl.With("length", len(ucj), "duration", time.Since(start)).Debug("got response")
 
 			ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
 			dat = []byte(ucj)
