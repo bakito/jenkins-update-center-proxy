@@ -129,6 +129,7 @@ func (h *handler) watchOfflineChanges() {
 		}
 	}
 }
+
 func (h *handler) cacheFile(offlineDir string, name string) {
 	path := filepath.Join(offlineDir, name)
 	dat := h.loadFile(path)
@@ -154,7 +155,6 @@ func (h *handler) loadFile(path string) []byte {
 // Given a request send it to the appropriate url
 func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, req *http.Request) {
 	return func(res http.ResponseWriter, req *http.Request) {
-
 		url := h.downloadURL + file
 
 		rl := log.With("remoteAddr", req.RemoteAddr)
@@ -181,7 +181,6 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 				SetQueryParamsFromValues(req.URL.Query()).
 				EnableTrace().
 				Get(url)
-
 			if err != nil {
 				http.Error(res, err.Error(), http.StatusInternalServerError)
 				return
@@ -206,7 +205,6 @@ func (h *handler) handleUpdateCenter(file string) func(res http.ResponseWriter, 
 }
 
 func (h *handler) handleIndex(res http.ResponseWriter, _ *http.Request) {
-
 	t, err := template.New("index").Parse(indexTemplate)
 	if err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
