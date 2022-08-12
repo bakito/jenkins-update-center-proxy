@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -143,7 +142,7 @@ func (h *handler) cacheFile(offlineDir string, name string) {
 func (h *handler) loadFile(path string) []byte {
 	if _, err := os.Stat(path); err == nil {
 		// #nosec G304 files need to be loaded, since this is a private func files loaded are limited
-		if dat, err := ioutil.ReadFile(path); err == nil {
+		if dat, err := os.ReadFile(path); err == nil {
 			ucj := string(dat)
 			ucj = strings.ReplaceAll(ucj, repoURL, h.repoProxyURL)
 			return []byte(ucj)
