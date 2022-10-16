@@ -71,8 +71,13 @@ func main() {
 	h := handler.New(r, contextPath, repoProxyURL, useProxyForDownload, insecureSkipVerify, offlineDir, timeout)
 	defer h.Close()
 
-	http.Handle("/", r)
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), nil); err != nil {
+	httpServer := &http.Server{
+		Addr:              fmt.Sprintf(":%s", port),
+		Handler:           r,
+		ReadHeaderTimeout: 1 * time.Second,
+	}
+
+	if err := httpServer.ListenAndServe(); err != nil {
 		panic(err)
 	}
 }
