@@ -35,6 +35,7 @@ jobs:
           push: true
           tags: quay.io/bakito/jenkins-update-center-proxy:latest,quay.io/bakito/jenkins-update-center-proxy:${{ github.event.release.tag_name }},ghcr.io/bakito/jenkins-update-center-proxy:latest,ghcr.io/bakito/jenkins-update-center-proxy:${{ github.event.release.tag_name }}
           platforms: linux/amd64
+          provenance: false
           build-args: VERSION=${{ github.event.release.tag_name }}
 
       - name: Build and push master
@@ -45,6 +46,7 @@ jobs:
           push: true
           tags: quay.io/bakito/jenkins-update-center-proxy:master,ghcr.io/bakito/jenkins-update-center-proxy:master
           platforms: linux/amd64
+          provenance: false
           build-args: VERSION=master
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
